@@ -1,6 +1,6 @@
 #Code to run Age-length Models for blue whales
 #Zoe Rand
-#Last updated: June 3 2026
+#Last updated: Sep 8 2026
 library(tidyverse)
 library(here)
 library(RTMB)
@@ -49,8 +49,11 @@ write_csv(Earplug_dat, here("data", "Earplug_dat_all.csv"))
 gen_growth_mod_single<-function(parms, dat){
   #b = 1 is Von Bertalanffy
   #b = 0.0001 is Gompertz
+  #pops: 1 = pygmy, 2 = ENP, 3 = Anatarctic
+  
   require(RTMB)
   getAll(dat, parms, warn = FALSE)
+  
   #parameters
   L_2_F<-exp(log_L2) #vector of 3
   L_1_F<-exp(log_L1) #vector of 3
@@ -81,10 +84,15 @@ gen_growth_mod_single<-function(parms, dat){
     }
   }
   #print(L_inf)
+  
   #priors
+  #informative prior on L1
+  pri<-0
+  pri<-pri -sum(dnorm(L_1_F, mean = 16, sd = 2, log = TRUE))
+  pri<-pri -sum(dnorm(L_1_M, mean = 16, sd = 2, log = TRUE))
   
   #jacobian for uniform priors on log scale
-  pri<-sum(log_L1, log_L1_M, log_k, log_L2, log_L2_M)
+  pri<- pri - sum(log_L1, log_L1_M, log_k, log_L2, log_L2_M)
   
   
   #predictions
@@ -275,13 +283,12 @@ init_fun<-function(){
 
 fit_Sov<-tmbstan(Sov_obj, iter = 6000, chains = 4,
                  warmup = 5000,
-                 #thin = 10,
                  control = list(adapt_delta = 0.97, max_treedepth = 17), 
                  init = init_fun, 
-                 seed = 123, 
+                 seed = 222, 
                  cores = 1,
-                 lower = c(rep(-100, 3), log(5), log(5), log(5), rep(-100, 3),log(5), log(5), log(5), rep(log(0.05), 1), rep(-100, 3), rep(0, 1)), 
-                 upper = c(rep(log(10000), 3), log(25), log(25), log(25), rep(log(10000), 3),log(25), log(25), log(25), rep(log(0.3), 1), rep(log(10000), 3), rep(15, 1)))
+                 lower = c(rep(-100, 6), rep(-100, 6), rep(log(0.000001), 1), rep(-100, 3), rep(0, 1)), 
+                 upper = c(rep(log(10000), 6), rep(log(10000), 6),rep(log(0.3), 1), rep(log(10000), 3), rep(15, 1)))
 fit_Sov
 
 mcmc_trace(fit_Sov)
@@ -319,6 +326,8 @@ reps_preds_S<-apply(Sov_draws, 1, get_report, obj = S_R_new)
 preds_S<-sapply(reps_preds_S, function(x){x$mu})
 
 saveRDS(preds_S, here("results", "Richards_preds_Soviet.RDS"))
+
+
 
 
 
@@ -371,8 +380,8 @@ VB_fit_S<-tmbstan(VB_obj_S, iter = 2000, chains = 4,
                   #thin = 10,
                   control = list(adapt_delta = 0.97, max_treedepth = 17), 
                   init = init_funVB,
-                  lower = c(rep(-100, 3), log(5), log(5), log(5), rep(-100, 3),log(5), log(5), log(5), log(0.05), rep(-100, 3)),
-                  upper = c(rep(log(10000), 3), log(25), log(25), log(25), rep(log(10000), 3),log(25), log(25), log(25), log(0.2), rep(log(10000), 3)))
+                  lower = c(rep(-100, 6), rep(-100, 6),log(0.00001), rep(-100, 3)),
+                  upper = c(rep(log(10000), 6), rep(log(10000), 6), log(0.2), rep(log(10000), 3)))
 saveRDS(VB_fit_S, here("results", "VB_fit_Sov.RDS"))
 
 mcmc_trace(VB_fit_S)
@@ -442,7 +451,7 @@ G_fit_S<-tmbstan(G_obj_S, iter = 3000, chains = 4,
                  #thin = 10,
                  control = list(adapt_delta = 0.97, max_treedepth = 17), 
                  init = init_funG, 
-                 lower = c(rep(-100, 3), log(5), log(5), log(5), rep(-100, 3),log(5), log(5), log(5), log(0.05), rep(-100, 3)),
+                 lower = c(rep(-100, 3), log(5), log(5), log(5), rep(-100, 3),log(5), log(5), log(5), log(0.00001), rep(-100, 3)),
                  upper = c(rep(log(10000), 3), log(25), log(25), log(25), rep(log(10000), 3),log(25), log(25), log(25), log(0.2), rep(log(10000), 3)))
 
 saveRDS(G_fit_S, here("results", "G_fit_Soviet.RDS"))
@@ -506,10 +515,10 @@ out_all<-R_out_S_2 %>% left_join(VB_out_S_2, by = "Parameter") %>%
 
 #put rows in better order
 out_all$Parameter<-factor(out_all$Parameter, 
-                          levels = c("L2_P", "L2M_P", "L2_ENP", "L2M_ENP", "L2_A","L2M_A",
-                                     "L1_P", "L1M_P", "L1_ENP", "L1M_ENP", "L1_A", "L1M_A",
+                          levels = c("L1_A", "L1M_A", "L1_ENP", "L1M_ENP", "L1_P", "L1M_P",
+                                     "L2_A", "L2M_A", "L2_ENP", "L2M_ENP", "L2_P","L2M_P",
                                      "k",
-                                     "sigma_P", "sigma_ENP", "sigma_A", 
+                                     "sigma_A", "sigma_ENP", "sigma_P", 
                                      "b"))
 out_tab<-out_all %>% arrange(Parameter)
 write_csv(out_tab, here("results","Model_result_table_Soviet_basecase.csv"))
@@ -558,7 +567,7 @@ fit_J<-tmbstan(J_obj, iter = 9000, chains = 4,
                init = init_fun, 
                seed = 444, 
                cores = 1,
-               lower = c(rep(-100, 3), log(5), log(5), log(5), rep(-100, 3),log(5), log(5), log(5), rep(log(0.05), 1), rep(-100, 3), rep(0, 1)), 
+               lower = c(rep(-100, 3), log(5), log(5), log(5), rep(-100, 3),log(5), log(5), log(5), rep(log(0.0001), 1), rep(-100, 3), rep(0, 1)), 
                upper = c(rep(log(10000), 3), log(25), log(25), log(25), rep(log(10000), 3),log(25), log(25), log(25), rep(log(0.3), 1), rep(log(10000), 3), rep(15, 1)))
 fit_J
 
@@ -566,6 +575,10 @@ mcmc_trace(fit_J)
 mcmc_dens(fit_J)
 mcmc_acf(fit_J)
 
+#save draws
+J_draws<-as_draws_matrix(fit_J)
+J_draws<-J_draws[, -ncol(J_draws)]
+saveRDS(J_draws, here("results", "Richards_draws_Japanese.RDS"))
 
 
 # All data (Richards) -----------------------------------------------------
@@ -636,16 +649,16 @@ run_mod<-function(obj, map){
   #print(nk)
   #print(nb)
   init_fun<-function(){
-    L2<- rnorm(3, 23, 2)
-    L2_M<-rnorm(3, 22, 2)
-    return(list(
-      log_L2 = log(L2),
-      log_L1 = log(0.5*L2), #so that L1 is below L2
-      log_L2_M = log(L2_M),
-      log_L1_M = log(0.5*L2_M),
-      log_k = rep(log(rnorm(1, 0.17, 0.01)), nk),
-      log_sigma = c(log(1.1), log(1.2), log(1.3)), 
-      b = rep(runif(1, 1, 5), nb)
+   L2<- rnorm(3, 23, 2)
+  L2_M<-rnorm(3, 22, 2)
+  return(list(
+    log_L2 = log(L2),
+    log_L1 = log(0.5*L2), #so that L1 is below L2
+    log_L2_M = log(L2_M),
+    log_L1_M = log(0.5*L2_M),
+    log_k = rep(log(rnorm(1, 0.17, 0.01)), nk),
+    log_sigma = c(log(1.1), log(1.2), log(1.3)), 
+    b = rep(runif(1, 1, 5), nb)
     )
     )
   }
@@ -656,59 +669,14 @@ run_mod<-function(obj, map){
                init = init_fun, 
                seed = 555, 
                cores = 1,
-               lower = c(rep(-100, 3), log(5), log(5), log(5), rep(-100, 3),log(5), log(5), log(5), rep(log(0.05), nk), rep(-100, 3), rep(0, nb)), 
-               upper = c(rep(log(10000), 3), log(25), log(25), log(25), rep(log(10000), 3),log(25), log(25), log(25), rep(log(0.3), nk), rep(log(10000), 3), rep(15, nb)))
+               lower = c(rep(-100, 6), rep(-100, 6), rep(log(0.00001), nk), rep(-100, 3), rep(0, nb)), 
+               upper = c(rep(log(10000), 6), rep(log(10000), 6),rep(log(0.3), nk), rep(log(10000), 3), rep(15, nb)))
   return(fit)
 }
 
 
 
 R_fit_list<-mcmapply(run_mod, R_obj_list, list_of_maps)
-
-
-#rerun models that didn't converge with more iterations
-run_mod2<-function(obj, map){
-  nk<-length(levels(map$log_k))
-  nb<-length(levels(map$b))
-  #print(nk)
-  #print(nb)
-  init_fun<-function(){
-    L2<- rnorm(3, 23, 1)
-    L2_M<-rnorm(3, 22, 1)
-    return(list(
-      log_L2 = log(L2),
-      log_L1 = log(0.5*L2), #so that L1 is below L2
-      log_L2_M = log(L2_M),
-      log_L1_M = log(0.5*L2_M),
-      log_k = rep(log(rnorm(1, 0.17, 0.01)), nk),
-      log_sigma = c(log(1.1), log(1.2), log(1.3)), 
-      b = rep(runif(1, 1, 5), nb)
-    )
-    )
-  }
-  fit<-tmbstan(obj, iter = 45000, chains = 4,
-               warmup = 40000,
-               thin = 10,
-               control = list(adapt_delta = 0.97, max_treedepth = 17), 
-               init = init_fun, 
-               seed = 651, 
-               cores = 1,
-               lower = c(rep(-100, 3), log(5), log(5), log(5), rep(-100, 3),log(5), log(5), log(5), rep(log(0.05), nk), rep(-100, 3), rep(0, nb)), 
-               upper = c(rep(log(1000), 3), log(25), log(25), log(25), rep(log(1000), 3),log(25), log(25), log(25), rep(log(0.3), nk), rep(log(1000), 3), rep(15, nb)))
-  return(fit)
-}
-
-R_fit_list2<-mcmapply(run_mod2, R_obj_list[c(2,6,9,11,13,14)], list_of_maps[c(2,6,9,11,13,14)])
-
-R_fit_list[[2]]<-R_fit_list2[[1]]
-R_fit_list[[6]]<-R_fit_list2[[2]]
-R_fit_list[[9]]<-R_fit_list2[[3]]
-R_fit_list[[11]]<-R_fit_list2[[4]]
-R_fit_list[[13]]<-R_fit_list2[[5]]
-R_fit_list[[14]]<-R_fit_list2[[6]]
-
-saveRDS(R_fit_list, here("results", "Richards_fit_list.RDS"))
-#R_fit_list<-readRDS(here("results", "Richards_fit_list.RDS"))
 
 
 destination<-here("results", "R_fits_plots.pdf")
@@ -826,7 +794,7 @@ out_all<-bind_rows(out_df2)
 
 out_all$Group <-factor(out_all$Group, levels = c("Single" ,"Ant", "ENP", "Pygmy", "F" , "M", 
                                                  "F*Ant","F*ENP", "F*Pygmy",  "M*Ant", "M*ENP", "M*Pygmy"))
-p_all<-out_all %>% filter(!Model %in% c(2, 9, 11, 14)) %>% ggplot(aes(x = Model, y = median)) +   
+p_all<-out_all %>% ggplot(aes(x = Model, y = median)) +   
   geom_linerange(aes(x = Model, ymin = lwr, ymax = upr, color = Group),position=position_dodge(width=0.5))+
   geom_point(aes(x = Model, y = median, color = Group), position=position_dodge(width=0.5)) +
   facet_wrap(~Parameter_group, ncol = 1, scales = "free_y") + 
@@ -885,7 +853,7 @@ ggplot() +
 
 # Plot posteriors for sensitivity tests ---------------------------------------
 
-pars_out_all<-R_draws[[16]] %>% as.matrix() %>% as_tibble() %>% mutate(across(starts_with("log"), exp, .names = "exp_{col}")) %>%
+pars_out_all<-draws_out[[16]] %>% as.matrix() %>% as_tibble() %>% mutate(across(starts_with("log"), exp, .names = "exp_{col}")) %>%
   rename_with(~ str_remove(., "exp_log_"), 
               cols = starts_with("exp_log_")) %>% 
   select(!starts_with("log_")) %>% 
@@ -1020,7 +988,7 @@ S_post_pred_appendix
 #posterior predictive
 J_draws<-as_draws_matrix(fit_J)
 J_draws<-J_draws[, -ncol(J_draws)]
-saveRDS(J_draws, here("results", "Richards_draws_Japanese.RDS"))
+#saveRDS(J_draws, here("results", "Richards_draws_Japanese.RDS"))
 
 ndraws <-4000
 postpred_J<-list()
@@ -1063,29 +1031,29 @@ p2_J<-ggplot(pp_df_quants_J) + geom_jitter(aes(x = Age, y = p_val, color = as.fa
   theme(legend.position = "none")
 p2_J                     
 
-exp1<-japanese_mod_dat %>% filter(BluePopulation == "Pygmy") %>% 
-  group_by(LengthFT) %>% summarise(n = n()) %>%
-  ggplot() + geom_col(aes(x = LengthFT, y = n)) 
-
-exp2<-japanese_mod_dat %>% filter(BluePopulation == "Pygmy") %>% 
-  ggplot() + geom_point(aes(x = Age, y = LengthFT, shape = as.factor(Sex)))
-
-exp1+exp2 + plot_annotation(title = "Japanese pygmy blue whale data")
-p3_J<-ggplot() + 
-  geom_point(data = japanese_mod_dat, 
-             aes(x = Age, y = Length, shape = Sex), color = "gray20") + 
-  geom_errorbar(data = pp_df_quants_J, aes(x = Age, ymin = `2.5%`, ymax = `97.5%`, color = BluePopulation), alpha = 0.5) + 
-  geom_point(data = pp_df_quants_J, aes(x = Age, y = `50%`, color = BluePopulation), shape = 4, alpha = 0.5) +
-  #scale_color_manual(values = pal) +
-  scale_y_continuous(breaks = seq(1, 27, by = 5)) +
-  facet_grid(Sex~BluePopulation2) +  #labeller = labeller(BluePopulation2 = as_labeller(lbls))) + 
-  labs(y = "Length (m)") +
-  theme_classic() +
-  theme(legend.position = "none", 
-        strip.background = element_blank())
-p3_J
-
-p2_J + p3_J + plot_annotation(title = "Model with only Japanese data for pygmy blue whales")
+# exp1<-japanese_mod_dat %>% filter(BluePopulation == "Pygmy") %>% 
+#   group_by(LengthFT) %>% summarise(n = n()) %>%
+#   ggplot() + geom_col(aes(x = LengthFT, y = n)) 
+# 
+# exp2<-japanese_mod_dat %>% filter(BluePopulation == "Pygmy") %>% 
+#   ggplot() + geom_point(aes(x = Age, y = LengthFT, shape = as.factor(Sex)))
+# 
+# exp1+exp2 + plot_annotation(title = "Japanese pygmy blue whale data")
+# p3_J<-ggplot() + 
+#   geom_point(data = japanese_mod_dat, 
+#              aes(x = Age, y = Length, shape = Sex), color = "gray20") + 
+#   geom_errorbar(data = pp_df_quants_J, aes(x = Age, ymin = `2.5%`, ymax = `97.5%`, color = BluePopulation), alpha = 0.5) + 
+#   geom_point(data = pp_df_quants_J, aes(x = Age, y = `50%`, color = BluePopulation), shape = 4, alpha = 0.5) +
+#   #scale_color_manual(values = pal) +
+#   scale_y_continuous(breaks = seq(1, 27, by = 5)) +
+#   facet_grid(Sex~BluePopulation2) +  #labeller = labeller(BluePopulation2 = as_labeller(lbls))) + 
+#   labs(y = "Length (m)") +
+#   theme_classic() +
+#   theme(legend.position = "none", 
+#         strip.background = element_blank())
+# p3_J
+# 
+# p2_J + p3_J + plot_annotation(title = "Model with only Japanese data for pygmy blue whales")
 
 J_post_pred_appendix<-p1_J + p2_J &theme_classic() & theme(legend.position = "none")
 J_post_pred_appendix
@@ -1094,7 +1062,7 @@ J_post_pred_appendix
 #read in fit if necessary
 R_draws<-readRDS(here("results", "Richards_fit_draws.RDS"))
 
-#just Richards because best model
+#just Richards 
 ndraws<-2000
 set.seed(400)
 t1<-1
@@ -1146,10 +1114,12 @@ p2<-ggplot(pp_df_quants) + geom_jitter(aes(x = Age, y = p_val, color = as.factor
 p2
 
 
-p1+p2 & theme_classic() & theme(legend.position = "none")
+sp_all<-p1+p2 & theme_classic() & theme(legend.position = "none")
+sp_all
 
-
-
+# ggsave("figures/post_pred_all_data.png", sp_all, dpi = 600)
+# ggsave("figures/post_pred_Japan.png", J_post_pred_appendix, dpi = 600)
+# ggsave("figures/post_pred_Soviet.png", S_post_pred_appendix, dpi = 600)
 
 
 

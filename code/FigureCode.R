@@ -1,6 +1,6 @@
 #Figure Code
 #Zoe Rand
-#Last Updated: June 3, 2026
+#Last Updated: September 9, 2026
 #Used to create all figures in manuscript
 #Will require running models in other files and saving results in order to run this
 #Note figure 1 requires access to full whaling data from IWC in order to recreate, therefore
@@ -77,7 +77,7 @@ Figure2<-function(){
 
 fig2<-Figure2()
 
-#ggsave(here("figures", "Figure2.png"), fig2, dpi = 600, width = 6, height = 6, units = "in")
+#ggsave(here("figures", "Figure2.pdf"), fig2, dpi = 600, width = 6, height = 6, units = "in")
 
 
 # Figure 3 ----------------------------------------------------------------
@@ -105,7 +105,7 @@ Figure3<-function(){
 
 fig3<-Figure3()
 
-#ggsave(here("figures", "Figure3.png"),fig3, dpi = 600, width = 6, height = 5, units = "in")
+#ggsave(here("figures", "Figure3.pdf"),fig3, dpi = 600, width = 6, height = 5, units = "in")
 
 
 # Figure 4 ----------------------------------------------------------------
@@ -136,10 +136,10 @@ Figure4<-function(){
                                                               ifelse(Parameter %in% c("L1[3]", "L1_M[3]","L2_M[3]","L2[3]","sigma[3]"), "Antarctic", "All"))))                               
   #add priors
   
-  L1_pri_r<-runif(10000, 5, 25)
-  L1_pri_d<-dunif(L1_pri_r, 5, 25)
-  k_pri_r<-runif(10000, 0.05, 0.3)
-  k_pri_d<-dunif(k_pri_r, 0.05, 0.3)
+  L1_pri_r<-rnorm(10000, 16, 2)
+  L1_pri_d<-dnorm(L1_pri_r, 16, 2)
+  k_pri_r<-runif(10000, 0, 0.3)
+  k_pri_d<-dunif(k_pri_r, 0, 0.3)
   b_pri_r<-runif(10000, 0, 15)
   b_pri_d<-dunif(b_pri_r, 0, 15)
   prior_df<-tibble(Parameter = rep(c("L1[1]","L1[2]","L1[3]", "L1_M[1]","L1_M[2]","L1_M[3]", "k", "b"), each = 10000), 
@@ -179,11 +179,12 @@ Figure4<-function(){
   )
   
   #colors for population
-  pal3<-c(pal, "All" = "black")
+  pal3<-c(pal, "All" = "gray50")
   
   #plot
-  post_plot<-ggplot() + geom_density(data = prior_df, aes(x = r_vals, y = d_vals, group = as.factor(Parameter)), linetype =  "dashed") + 
+  post_plot<-ggplot() + 
     geom_density(data = pars_out, aes(x = value, group = Parameter_fct, color = BluePopulation, fill = BluePopulation), alpha = 0.5) + 
+    geom_density(data = prior_df, aes(x = r_vals, y = d_vals, group = Parameter_fct), stat = "identity") + 
     facet_wrap(~Parameter_fct, scales = "free", labeller = label_parsed, ncol = 6) + 
     facetted_pos_scales(x = x_scales) +
     labs(x = "Estimate", y = "density") +
@@ -202,7 +203,7 @@ Figure4<-function(){
 
 fig4<-Figure4()
 
-#ggsave(here("figures", "Figure4.png"),fig4 width = 6, height = 5, units = "in", dpi = 600)
+#ggsave(here("figures", "Figure4.pdf"),fig4, width = 6, height = 5, units = "in", dpi = 600)
 
 
 # Figure 5 ----------------------------------------------------------------
@@ -237,7 +238,7 @@ Figure5<-function(){
     scale_color_viridis_c() +
     scale_y_continuous(breaks = seq(1, 27, by = 5)) +
     scale_shape_discrete(guide = "none") +
-    facet_grid(Sex~BluePopulation, labeller = labeller(BluePopulation = as_labeller(lbls)), axes = "all_x") + 
+    facet_grid(Sex~BluePopulation, axes = "all_x") + 
     labs(y = "Length (m)") +
     theme_classic() +
     theme(strip.background = element_blank(), 
@@ -253,7 +254,7 @@ Figure5<-function(){
     geom_point(data = AgeLength_postpreds, aes(x = Age, y = `50%`, color = BluePopulation), shape = 4, alpha = 0.5) +
     scale_color_manual(values = pal) +
     scale_y_continuous(breaks = seq(1, 27, by = 5)) +
-    facet_grid(Sex~BluePopulation, labeller = labeller(BluePopulation = as_labeller(lbls)), axes = "all_x") + 
+    facet_grid(Sex~BluePopulation, axes = "all_x") + 
     labs(y = "Length (m)") +
     theme_classic() +
     theme(legend.position = "none", 
@@ -263,13 +264,13 @@ Figure5<-function(){
   plot2
   
   plot_tog<-plot1 + plot2 + plot_annotation(tag_levels = "a", tag_suffix = ")") +
-    plot_layout(axes = "collect")
+    plot_layout(axes = "collect") & theme(axis.title = element_text(size = rel(1.5)))
   return(print(plot_tog))
 }
 
 fig5<-Figure5()
 
-#ggsave(here("figures", "Figure5.png"), fig5, dpi = 600, width = 8.5, height = 5, units = "in")
+ggsave(here("figures", "Figure5.pdf"), fig5, dpi = 600, width = 8.5, height = 5, units = "in")
 
 
 # Figure 6 ----------------------------------------------------------------
@@ -305,7 +306,9 @@ Figure6<-function(){
 
 fig6<-Figure6()
 
-#ggsave(here("figures", "Figure6.png"), fig6, dpi = 600, width = 5, height = 4, units = "in")
+apply(Linf_R, 2, quantile, c(0.5, 0.025, 0.975))
+
+#ggsave(here("figures", "Figure6.pdf"), fig6, dpi = 600, width = 5, height = 4, units = "in")
 #
 #
 
@@ -379,6 +382,8 @@ Figure7<-function(){
   
   #combine
   pars_out<-bind_rows(pars_out_all, pars_out_S, pars_out_J)
+  summ<-pars_out %>% group_by(Model, Parameter) %>% summarise(med = median(value), lwr = quantile(value, 0.025), upr = quantile(value, 0.975))
+  #View(summ)
   
   #plot
   sens_plot<-ggplot() + geom_density(data = pars_out, aes(x = value, group = Model, color = Model), 
@@ -399,7 +404,7 @@ Figure7<-function(){
 }
 
 fig7<-Figure7()
-#ggsave(here("figures", "Figure7.png"), fig7, width = 10, height = 6, units = "in", dpi = 600)
+ggsave(here("figures", "Figure7.pdf"), fig7, width = 10, height = 8, units = "in", dpi = 600)
 
 
 # Figure 8 ----------------------------------------------------------------
@@ -411,7 +416,7 @@ Figure8<-function(){
                                 aes(x = Age, y = TotalCorpora, color = BluePopulation)) + 
     geom_ribbon(data = Corpora_mod_preds, aes(x = Age, ymin = lwr, ymax = upr, fill = BluePopulation), alpha = 0.5) + 
     geom_line(data = Corpora_mod_preds, aes(x = Age, y = med, color = BluePopulation)) + 
-    facet_wrap(~BluePopulation, labeller = as_labeller(lbls2)) + 
+    facet_wrap(~BluePopulation) + 
     scale_fill_manual(values = pal) + 
     scale_color_manual(values = pal) +
     theme_classic() + 
@@ -429,7 +434,7 @@ Figure8<-function(){
   corp_2<-ggplot(Corpora_post_pred) + geom_point(aes(x = Age, y = TotalCorpora)) + 
     geom_point(aes(x = Age, y = `50%`, color = BluePopulation), shape = 8) + 
     geom_errorbar(aes(x = Age, ymin = `2.5%`, ymax = `97.5%`, color = BluePopulation)) + 
-    facet_wrap(~BluePopulation, labeller = as_labeller(lbls2)) +
+    facet_wrap(~BluePopulation) +
     scale_color_manual(values = pal) +
     scale_y_continuous(expand = c(0, 0)) +
     labs(y = "# of Corpora") +
@@ -449,7 +454,7 @@ Figure8<-function(){
 
 fig8<-Figure8()
 
-#ggsave(here("figures", "Figure8.png"), fig8, dpi = 600, width = 6, height = 5, units  = "in")
+#ggsave(here("figures", "Figure8.pdf"), fig8, dpi = 600, width = 6, height = 5, units  = "in")
 
 
 
